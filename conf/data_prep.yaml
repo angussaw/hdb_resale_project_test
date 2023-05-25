@@ -1,0 +1,145 @@
+files:
+  training:
+    raw_data:
+        read_from_source: csv
+        params:
+          data_path: "data/raw/for_training/"
+          concat: True
+    preprocessed_save_path: "data/preprocessed/for_training/hdb_preprocessed.csv"
+    save_to_source: "local"
+    derived_features_table_name: "hdb_training_features"
+
+data_prep:
+
+  month: month
+  data_cleaning:
+
+    adjust_resale:
+      resale_price: resale_price
+      cpi_data: 
+        read_from_source: csv
+        params:
+          data_path: "data/for_data_cleaning/cpi.csv"
+          concat: False
+
+    remove_flat_types:
+      flat_type: "flat_type"
+      remove:
+        - "2 ROOM"
+        - "1 ROOM"
+        - "MULTI-GENERATION"
+        - "MULTI GENERATION"
+
+    replace_flat_models:
+      flat_model: flat_model
+      replace:
+        PREMIUM MAISONETTE: "MAISONETTE"
+        IMPROVED-MAISONETTE: "MAISONETTE"
+        MODEL A-MAISONETTE: "MAISONETTE"
+        PREMIUM APARTMENT LOFT: "APARTMENT"
+        TERRACE: "SPECIAL"
+        ADJOINED FLAT: "SPECIAL"
+        TYPE S1: "SPECIAL"
+        TYPE S2: "SPECIAL"
+        DBSS: "SPECIAL"
+        MODEL A2: "MODEL A"
+        PREMIUM APARTMENT: "APARTMENT"
+        IMPROVED: "STANDARD"
+        SIMPLIFIED: "MODEL A"
+        2-ROOM: "STANDARD"
+
+      
+
+  feature_engineering:
+
+    year: year
+    year_month: year_month
+
+    generate_amenities_features:
+      latitude: "latitude"
+      longitude: "longitude"
+      block: "block"
+      street_name: "street_name"
+      amenities:
+        malls:
+          amenities_data:
+            read_from_source: csv
+            params:
+              data_path: "data/for_feature_engineering/malls/mall_coordinates.csv"
+              concat: False
+          radius: 2
+          period: False
+        
+        schools:
+          amenities_data:
+            read_from_source: csv
+            params:
+              data_path: "data/for_feature_engineering/schools/school_coordinates.csv"
+              concat: False
+          radius: 2
+          period: False
+
+        parks:
+          amenities_data:
+            read_from_source: csv
+            params:
+              data_path: "data/for_feature_engineering/parks/park_coordinates.csv"
+              concat: False
+          radius: 2
+          period: False
+
+        MRT_stations:
+          amenities_data:
+            read_from_source: csv
+            params:
+              data_path: "data/for_feature_engineering/mrt_stations/mrt_station_coordinates_w_period.csv"
+              concat: False
+          radius: 2
+          period: True
+
+    calculate_lease_age:
+      lease_age: lease_age
+      lease_commence_date: lease_commence_date
+
+    map_regions:
+      region: "region"
+      town: "town"
+      mapping:
+        North: 
+          - WOODLANDS
+          - SEMBAWANG
+          - YISHUN
+          - BUKIT BATOK
+        Northeast:
+          - HOUGANG
+          - SENGKANG
+          - PUNGGOL
+          - ANG MO KIO
+          - SERANGOON
+        Central:
+          - BUKIT MERAH
+          - CENTRAL AREA
+          - BISHAN
+          - GEYLANG
+          - KALLANG/WHAMPOA
+          - QUEENSTOWN
+          - TOA PAYOH
+          - MARINE PARADE
+        West:
+          - JURONG WEST
+          - JURONG EAST
+          - CLEMENTI
+          - BUKIT PANJANG
+          - BUKIT TIMAH
+          - CHOA CHU KANG
+          - LIM CHU KANG
+        East: 
+          - PASIR RIS
+          - TAMPINES
+          - BEDOK
+
+
+    
+
+
+
