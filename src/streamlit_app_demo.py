@@ -19,6 +19,7 @@ import streamlit as st
 from streamlit_folium import folium_static
 import sys
 import yaml
+from typing import List
 
 sys.path.append("conf")
 with open("conf/data_prep.yaml", "r") as file:
