@@ -4,7 +4,6 @@
 ## 2. Feature Engineering
 """
 import logging
-
 from omegaconf import DictConfig
 import pandas as pd
 
@@ -40,13 +39,11 @@ def data_prep_pipeline(
     )
 
     # Engineer features
-    logger.info("Generating hdb derived features...Please wait as this takes some time!!!")
+    logger.info(
+        "Generating hdb derived features...Please wait as this takes some time!!!"
+    )
     with hdb_est.utils.timer("hdb derived feature generation"):
-        derived_data_hdb = feature_engineer.engineer_features(
-            hdb_data=clean_hdb_data
-        )
+        derived_data_hdb = feature_engineer.engineer_features(hdb_data=clean_hdb_data)
         logger.info("Shape of hdb derived features: %s", derived_data_hdb.shape)
 
     return derived_data_hdb
-
-

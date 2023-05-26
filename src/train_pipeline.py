@@ -1,8 +1,10 @@
-"""Module containing the function to train a model
 """
-import logging
-from hydra import compose, initialize
+## train_pipeline.py reads data containing derived features and passes it
+through the training pipeline
+"""
+from hydra import initialize
 import hydra.core.global_hydra
+import logging
 
 import hdb_resale_estimator as hdb_est
 
@@ -16,14 +18,16 @@ def main(train_config):
         hydra.core.global_hydra.GlobalHydra.instance().clear()
         with initialize(version_base=None, config_path="../conf"):
             logger.info("Starting train pipeline...")
-            logger.info(
-                "Retrieving training data..."
-            )
+            logger.info("Retrieving training data...")
 
-            read_from_source = train_config["files"]["derived_features"]["read_from_source"]
+            read_from_source = train_config["files"]["derived_features"][
+                "read_from_source"
+            ]
             read_params = train_config["files"]["derived_features"]["params"]
 
-            derived_hdb_features = hdb_est.utils.read_data(source=read_from_source, params=read_params)
+            derived_hdb_features = hdb_est.utils.read_data(
+                source=read_from_source, params=read_params
+            )
 
             logger.info("Initialising model training...")
             metric, model_uri = hdb_est.modeling.training.train_pipeline(

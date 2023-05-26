@@ -2,29 +2,24 @@
  pipeline of hdb estimator
 """
 from contextlib import contextmanager
+from geopy.distance import geodesic
+import glob
 import hashlib
-from importlib import import_module
+import joblib
+import json
 import logging
 import logging.config
-import os
-from pathlib import Path
-import subprocess
-import tempfile
-import time
-from typing import Callable, List, Tuple, Iterable
-
-import numpy as np
-import glob
-from omegaconf import OmegaConf
-import pandas as pd
-import yaml
-from omegaconf import DictConfig
-import json
-import requests
-from geopy.distance import geodesic
-import sqlalchemy
 import mlflow
-import joblib
+import numpy as np
+import os
+import pandas as pd
+import requests
+import sqlalchemy
+import time
+from typing import Tuple
+import yaml
+
+from hdb_resale_estimator.modeling.builder import ClassicalModelBuilder
 
 logger = logging.getLogger(__name__)
 
@@ -103,56 +98,41 @@ def init_mlflow(mlflow_config: dict) -> Tuple[str, str]:
     return artifact_name, mlflow_config.get("description", "")
 
 
-def check_envvars() -> bool:
-    """Checks for MLFLOW_TRACKING_USERNAME and MLFLOW_TRACKING_PASSWORD envars.
-    Addtionally, alerts the user if AWS credentials are set.
-    """
-
-    return_status = True
-
-    for envvar in [
-        "MLFLOW_TRACKING_URI",
-    ]:
-        try:
-            os.environ[envvar]
-        except KeyError:
-            logger.warning("<< %s >> not found", envvar)
-            return_status = False
-            break
-
-    if os.getenv("AWS_ACCESS_KEY_ID") or os.getenv("AWS_SECRET_ACCESS_KEY"):
-        logger.info("AWS Credentials found; ignore if this is intended.")
-
-    return return_status
-
-
 def read_data(source: str, params: dict) -> pd.DataFrame:
+    """Helper function to read data either from csv or postgres
+
+    Args:
+        source (str): data source to read from
+        params (dict): configuration parameters used to read data
+
+    Returns:
+        pd.DataFrame: Dataframe read from csv or postgres
+    """
 
     if source == "csv":
         dataframe = read_csv(**params)
-
 
     elif source == "postgres":
         dataframe = extract_data_from_psql(**params)
 
     return dataframe
 
-def read_csv(
-    data_path: str, concat: bool = True) -> pd.DataFrame:
-    """Helper function to read data from a specified
-    file path
 
+def read_csv(data_path: str, concat: bool = True) -> pd.DataFrame:
+    """Helper function to read csv data from a specified
+    file path
 
     Args:
         data_path (str): file directory to read data files from
-        concat (bool, optional): boolean to indicate whether to concat all data files. Defaults to True.
+        concat (bool, optional): boolean to indicate whether to concat all data files.
+        Defaults to True.
 
     Returns:
         pd.DataFrame: resulting dataframe read from file directory
     """
 
     if concat:
-        all_files = glob.glob(os.path.join(data_path , "*.csv"))
+        all_files = glob.glob(os.path.join(data_path, "*.csv"))
         li = []
         for filename in all_files:
             df = pd.read_csv(filename, index_col=None, header=0)
@@ -164,40 +144,6 @@ def read_csv(
         dataframe = pd.read_csv(data_path, index_col=None, header=0)
 
     return dataframe
-    
-def construct_dated_filepath(original_path: str, date: str) -> str:
-    """A helper function to append a date to the end of a filepath.
-    The function takes in "/home/examplefile.csv" and "2023-03-04" and
-    returns "/home/examplefile_2023-03-04.csv".
-
-    Args:
-        original_path (str): The original filepath
-        date (str): A string of a date that is to be appended to the
-            original filepath
-
-    Returns:
-        str: A filepath with the date appended at the end.
-    """
-
-    filename, file_ext = os.path.splitext(original_path)
-    dated_path = f"{filename}_{date}{file_ext}"
-    return dated_path
-
-
-def generate_named_tmp_dir(dir_name: str) -> str:
-    """_summary_
-
-    Args:
-        folder_name (str): Desired name of tmp folder
-
-    Returns:
-        str: tmp folder path
-    """
-    tmp_dir = tempfile.mkdtemp()
-    named_tmp_dir = Path(os.sep.join([tmp_dir, dir_name]))
-    named_tmp_dir.mkdir()
-
-    return named_tmp_dir
 
 
 def find_coordinates(add: str) -> tuple:
@@ -211,14 +157,17 @@ def find_coordinates(add: str) -> tuple:
         tuple: latitude and longitude coordinates
     """
     # Do not need to change the URL
-    url= "https://developers.onemap.sg/commonapi/search?returnGeom=Y&getAddrDetails=Y&pageNum=1&searchVal="+ add        
-    
+    url = (
+        "https://developers.onemap.sg/commonapi/search?returnGeom=Y&getAddrDetails=Y&pageNum=1&searchVal="
+        + add
+    )
+
     # Retrieve information from website
     response = requests.get(url)
     try:
-        data = json.loads(response.text) 
+        data = json.loads(response.text)
     except ValueError:
-        print('JSONDecodeError')
+        print("JSONDecodeError")
         pass
 
     if len(data["results"]) != 0:
@@ -231,46 +180,58 @@ def find_coordinates(add: str) -> tuple:
     return latitude, longitude
 
 
-def find_nearest_amenities(flat_transaction,
-                           amenity_details: pd.DataFrame,
-                           radius: int,
-                           period: bool,
-                           latitude_feature: str,
-                           longitude_feature: str,
-                           year_month_feature: str,
-                           return_nearest_amenity: bool = False) -> tuple:
+def find_nearest_amenities(
+    flat_transaction: pd.Series,
+    amenity_details: pd.DataFrame,
+    radius: int,
+    period: bool,
+    latitude_feature: str,
+    longitude_feature: str,
+    year_month_feature: str,
+    return_nearest_amenity: bool = False,
+) -> tuple:
     """Function to find the number of amenities within radius
     of a flat, and also the flat's distance to the nearest amenity
 
     Args:
-        flat_transaction (_type_): flat transaction details (eg year_month, coordinates)
+        flat_transaction (pd.Series): flat transaction details (eg year_month, coordinates)
         amenity_details (pd.DataFrame): amenity details (eg year_month, coordinates)
         radius (int): radius around the flat
         period (bool): whether to take into account the opening date of the amenity
         coordinates_feature(str): name of coordinates feature
         year_month_feature (str): name of year_month feature
-        return_nearest_amenity (bool, optional): whether to return the location of the nearest amenity. 
+        return_nearest_amenity (bool, optional): whether to return the location of the nearest amenity.
                                                  Defaults to False.
 
     Returns:
         tuple: nearest amenities information for the flat
     """
 
-    flat_coordinates = (flat_transaction[latitude_feature], flat_transaction[longitude_feature])
+    flat_coordinates = (
+        flat_transaction[latitude_feature],
+        flat_transaction[longitude_feature],
+    )
     transaction_year_month = flat_transaction[year_month_feature]
     no_of_amenities_within_radius = 0
     distance_to_nearest_amenity = float("inf")
     if flat_coordinates != (float("inf"), float("inf")):
-        for ind, eachloc in enumerate(amenity_details.iloc[:,0]):
-            amenity_coordinates = (amenity_details.iloc[ind,1],amenity_details.iloc[ind,2])
+        for ind, eachloc in enumerate(amenity_details.iloc[:, 0]):
+            amenity_coordinates = (
+                amenity_details.iloc[ind, 1],
+                amenity_details.iloc[ind, 2],
+            )
             if period:
-                amenity_year_month = amenity_details.iloc[ind,3]
+                amenity_year_month = amenity_details.iloc[ind, 3]
                 if transaction_year_month >= amenity_year_month:
-                    distance = float(str(geodesic(flat_coordinates,amenity_coordinates))[:-3])
+                    distance = float(
+                        str(geodesic(flat_coordinates, amenity_coordinates))[:-3]
+                    )
             else:
-                distance = float(str(geodesic(flat_coordinates,amenity_coordinates))[:-3])
+                distance = float(
+                    str(geodesic(flat_coordinates, amenity_coordinates))[:-3]
+                )
 
-            if distance <= radius:   # compute number of amenities in 2km radius
+            if distance <= radius:  # compute number of amenities in 2km radius
                 no_of_amenities_within_radius += 1
 
             if return_nearest_amenity:
@@ -281,7 +242,12 @@ def find_nearest_amenities(flat_transaction,
             distance_to_nearest_amenity = min(distance, distance_to_nearest_amenity)
 
     if return_nearest_amenity:
-        return no_of_amenities_within_radius, distance_to_nearest_amenity, nearest_amenity_coordinates, nearest_amenity_name
+        return (
+            no_of_amenities_within_radius,
+            distance_to_nearest_amenity,
+            nearest_amenity_coordinates,
+            nearest_amenity_name,
+        )
     else:
         return no_of_amenities_within_radius, distance_to_nearest_amenity
 
@@ -304,7 +270,7 @@ def check_postgres_env() -> None:
         except KeyError:
             logger.warning("<< %s >> not found", envvar)
             raise KeyError("Ensure that Postgres env is set before saving to Postgres")
-        
+
 
 def create_postgres_engine() -> sqlalchemy.engine:
     """Create engine to connect to Postgres database
@@ -329,12 +295,21 @@ def create_postgres_engine() -> sqlalchemy.engine:
 
     return engine
 
-def extract_data_from_psql(table_name: str, columns:list) -> pd.DataFrame:
-    """"""
+
+def extract_data_from_psql(table_name: str, columns: list) -> pd.DataFrame:
+    """Helper function to extract data from postgres database
+
+    Args:
+        table_name (str): name of the postgres table to extract data from
+        columns (list): list of columns to extract from the postgres table
+
+    Returns:
+        pd.DataFrame: resulting dataframe extracted from postgres table
+    """
 
     check_postgres_env()
     db_engine = create_postgres_engine()
-    columns_query = ", ".join(['"'+column+'"' for column in columns])
+    columns_query = ", ".join(['"' + column + '"' for column in columns])
     sql_query = f"""
         SELECT {columns_query} FROM {table_name}
         WHERE date_context = (SELECT MAX(date_context) FROM {table_name})
@@ -348,16 +323,18 @@ def extract_data_from_psql(table_name: str, columns:list) -> pd.DataFrame:
 
     return extracted_df
 
+
 def push_data_to_sql(
     db_engine: sqlalchemy.engine, data: pd.DataFrame, table_name: str
 ) -> None:
     """Save data into postgres database
 
     Args:
-        data (str): Data that is to be saved
-        table_name (str): Name of postgres table
         db_engine (sqlalchemy.engine): Postgres database engine
+        data (pd.DataFrame): Data that is to be saved
+        table_name (str): Name of postgres table
     """
+
     with db_engine.begin() as conn:
         check_duplicate_date_input(conn, data, table_name)
         data.to_sql(
@@ -369,10 +346,11 @@ def push_data_to_sql(
             method="multi",
         )
 
+
 def check_duplicate_date_input(
     conn: sqlalchemy.engine.base.Connection, data: pd.DataFrame, table_name: str
 ) -> None:
-    """Check if date_context or date_of_inference of data exist within the table to be appended
+    """Check if date_context of data exist within the table to be appended
 
     Args:
         conn (sqlalchemy.engine.base.Connection): Connection to sqlalchemy
@@ -380,13 +358,12 @@ def check_duplicate_date_input(
         table_name (str): Table_name in psql server
 
     Raises:
-        ValueError: Error is raised when date_context or date_of_inference in table_name exists to prevent duplicate entries
+        ValueError: Error is raised when date_context in table_name exists to prevent duplicate entries
     """
+
     # Check data for date related column
     if "date_context" in data.columns:
         reference_column = "date_context"
-    elif "date_of_inference" in data.columns:
-        reference_column = "date_of_inference"
     else:
         raise ValueError(
             f"date_context or date_of_inference does not exist. Columns in data: {data.columns}"
@@ -410,23 +387,22 @@ def check_duplicate_date_input(
         )
 
 
-def retrieve_builder(run_id: str,
-                    model_uri: str,
-                    destination_path: str ="models"):
+def retrieve_builder(
+    run_id: str, model_uri: str, destination_path: str = "models"
+) -> ClassicalModelBuilder:
     """
     Function to retrieve a trained model from MLFLow for inference
 
     Args:
         run_id (str): MLFlow run id
         model_uri (str): MLFlow model uri
-        destination_path (str): Path to save model to
+        destination_path (str): Path to save model to. Defaults to "models"
 
     Returns:
-        Builder object with trained model
+        ClassicalModelBuilder: Builder object with trained model
     """
 
-
-    artifact_uri = f'mlflow-artifacts:/{run_id}/{model_uri}/artifacts/model'
+    artifact_uri = f"mlflow-artifacts:/{run_id}/{model_uri}/artifacts/model"
     logger.info("Downloading artifacts from MLFlow model URI: %s...", model_uri)
     try:
         mlflow.artifacts.download_artifacts(

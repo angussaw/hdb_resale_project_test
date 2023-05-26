@@ -1,4 +1,7 @@
-
+"""
+## fast_api.py contains the backend logic to process raw input data for inference,
+make predictions and generate shap values
+"""
 from fastapi import FastAPI
 import jsonpickle
 import logging
@@ -9,7 +12,7 @@ import sys
 import yaml
 import uvicorn
 
-with open('conf/data_prep.yaml', 'r') as file:
+with open("conf/data_prep.yaml", "r") as file:
     config = yaml.safe_load(file)
 
 sys.path.append("src")
@@ -20,11 +23,11 @@ logger = logging.getLogger(__name__)
 # Load model
 mlflow.set_tracking_uri(os.environ["MLFLOW_TRACKING_URI"])
 model_uri = os.getenv("MODEL_URI")
-run_id =  os.getenv("RUN_ID")
+run_id = os.getenv("RUN_ID")
 builder = hdb_est.utils.retrieve_builder(run_id=run_id, model_uri=model_uri)
 
 PRED_MODEL = builder.model
-PRED_MODEL_FEATURES = builder.objects["features"] # before encoding
+PRED_MODEL_FEATURES = builder.objects["features"]  # before encoding
 if "explainer" in builder.objects.keys():
     PRED_MODEL_EXPLAINER = builder.objects["explainer"]
 else:
@@ -44,7 +47,7 @@ def predict_resale_value(hdb_flat_dict: dict):
     """
 
     hdb_flat_df = pd.DataFrame([hdb_flat_dict])[PRED_MODEL_FEATURES]
-    processed_hdb_flat_df = builder.process_inference_data(inference_data = hdb_flat_df)
+    processed_hdb_flat_df = builder.process_inference_data(inference_data=hdb_flat_df)
     result = PRED_MODEL.predict(processed_hdb_flat_df)
 
     return result.tolist()[0]
@@ -59,9 +62,9 @@ def prepare_raw_data(input_data: dict):
     """
 
     input_data = pd.DataFrame([input_data])
-    data_cleaner = hdb_est.data_prep.data_cleaning.DataCleaner(raw_hdb_data=input_data,
-                                                                params=config["data_prep"],
-                                                                inference_mode=True)
+    data_cleaner = hdb_est.data_prep.data_cleaning.DataCleaner(
+        raw_hdb_data=input_data, params=config["data_prep"], inference_mode=True
+    )
     clean_input_data = data_cleaner.clean_data()
 
     logger.info("Conducting Feature Engineering...")
@@ -69,9 +72,8 @@ def prepare_raw_data(input_data: dict):
         params=config["data_prep"], inference_mode=True
     )
 
-    derived_input_data = feature_engineer.engineer_features(
-        hdb_data=clean_input_data)
-    
+    derived_input_data = feature_engineer.engineer_features(hdb_data=clean_input_data)
+
     return derived_input_data.iloc[0].to_dict()
 
 
@@ -85,7 +87,7 @@ def generate_shap_values(hdb_flat_dict: dict):
     """
 
     hdb_flat_df = pd.DataFrame([hdb_flat_dict])[PRED_MODEL_FEATURES]
-    processed_hdb_flat_df = builder.process_inference_data(inference_data = hdb_flat_df)
+    processed_hdb_flat_df = builder.process_inference_data(inference_data=hdb_flat_df)
 
     if PRED_MODEL_EXPLAINER:
         shap_values = PRED_MODEL_EXPLAINER(processed_hdb_flat_df)
@@ -93,6 +95,7 @@ def generate_shap_values(hdb_flat_dict: dict):
 
     else:
         return
+
 
 if __name__ == "__main__":
     uvicorn.run("fast_api:app", host="0.0.0.0", port=8500)

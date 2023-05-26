@@ -1,20 +1,19 @@
-"""Module that defines the Builder constructor to consolidate the steps required to load a model
-and prepare the data for training or inference
+"""Module that defines the Builder constructor to consolidate the steps required
+to load a model and prepare the data for training or inference
 """
 from abc import ABC, abstractmethod
+from interpret.glassbox import ExplainableBoostingRegressor
 import logging
+import pandas as pd
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.preprocessing import OrdinalEncoder, OneHotEncoder, StandardScaler
+from xgboost import XGBRegressor
 
 import hdb_resale_estimator as hdb_est
 
-from interpret.glassbox import ExplainableBoostingRegressor
-import pandas as pd
-from sklearn.linear_model import Ridge, Lasso
-from sklearn.preprocessing import OrdinalEncoder, OneHotEncoder, StandardScaler
-from sklearn.ensemble import RandomForestRegressor
-from xgboost import XGBRegressor
-
 logger = logging.getLogger(__name__)
 logger.setLevel(10)
+
 
 class Builder(ABC):
     """Builder class, not to be imported directly."""
@@ -25,7 +24,7 @@ class Builder(ABC):
         self.objects = {}
 
     def process_inference_data(self, inference_data: pd.DataFrame) -> pd.DataFrame:
-        """Function to perform binarizing and scaling of the inference data
+        """Function to perform encoding and scaling of the inference data
 
         Args:
             inference_data (pd.DataFrame): Inference derived features dataframe
@@ -51,7 +50,7 @@ class Builder(ABC):
             inference_data = self.scale_data(inference_data.sort_index(axis=1), scaler)
 
         return inference_data
-    
+
     def _ordinal_encode_variables(
         self,
         feature_data: pd.DataFrame,
@@ -63,15 +62,14 @@ class Builder(ABC):
         Args:
             feature_data (pd.DataFrame): Dataframe consisting of the feature(s)
             columns (list): List of columns that require ordinal encoding
-            fitted_encoder (OrdinalEncoder): Encoder object to be used during inference. Defaults to None during training
+            fitted_encoder (OrdinalEncoder): Encoder object to be used during inference.
+            Defaults to None during training
 
         Returns:
             pd.DataFrame: pd.DataFrame with ordinal encoded features
         """
 
-        existing_columns = self._check_binarize_columns(
-            feature_data.columns, columns
-        )
+        existing_columns = self._check_binarize_columns(feature_data.columns, columns)
 
         table_to_encode = feature_data[existing_columns]
 
@@ -110,8 +108,10 @@ class Builder(ABC):
 
         Args:
             feature_data (pd.DataFrame): Dataframe consisting of the feature(s)
-            columns (list): List of columns that require one hot encoding. Defaults to None during training
-            fitted_encoder (OneHotEncoder): Encoder object to be used during inference. Defaults to None during training
+            columns (list): List of columns that require one hot encoding.
+            Defaults to None during training
+            fitted_encoder (OneHotEncoder): Encoder object to be used during inference.
+            Defaults to None during training
 
         Returns:
             pd.DataFrame: pd.DataFrame with one-hot encoded features
@@ -121,7 +121,9 @@ class Builder(ABC):
                 feature_data.columns, columns
             )
         else:
-            existing_columns = feature_data.select_dtypes(include=['object']).columns.tolist()
+            existing_columns = feature_data.select_dtypes(
+                include=["object"]
+            ).columns.tolist()
 
         table_to_encode = feature_data[existing_columns]
 
@@ -154,7 +156,7 @@ class Builder(ABC):
     def _check_binarize_columns(
         self, feature_data_columns: list, col_to_select: list
     ) -> list:
-        """Checks column(s) to be selected for binarizing, whether they exist in 
+        """Checks column(s) to be selected for binarizing, whether they exist in
         the dataframe columns
 
         Args:
@@ -162,7 +164,7 @@ class Builder(ABC):
             col_to_select (list): List of columns to be selected for binarizing
 
         Returns:
-            list: List of columns to be selected for binarizing that 
+            list: List of columns to be selected for binarizing that
             exists in the dataframe
         """
         existing_columns = feature_data_columns[
@@ -179,13 +181,14 @@ class Builder(ABC):
     def scale_data(
         self,
         feature_data: pd.DataFrame,
-        fitted_scaler: StandardScaler=None,
+        fitted_scaler: StandardScaler = None,
     ) -> pd.DataFrame:
         """Performs standard scaling for features before training or inference
 
         Args:
             feature_data (pd.DataFrame): Dataframe consisting of the feature(s).
-            fitted_scaler (StandardScaler): StandardScaler object to be used during inference. Defaults to None during training
+            fitted_scaler (StandardScaler): StandardScaler object to be used during inference.
+            Defaults to None during training
 
         Returns:
             pd.DataFrame: Dataframe containing features with scaled values
@@ -221,7 +224,7 @@ class ClassicalModelBuilder(Builder):
     def __init__(self) -> None:
         super().__init__()
 
-    def set_model(self, model_name: str, model_params: dict) -> 'ClassicalModelBuilder':
+    def set_model(self, model_name: str, model_params: dict) -> "ClassicalModelBuilder":
         """Initiatiates a model with the specified model parameters.
 
         Args:

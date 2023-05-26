@@ -22,7 +22,7 @@ def train_test_val_split(
         train_size (float): Training set size to be obtained from raw data. Range between 0 to 1
         test_size (float): Test set size to be obtained from remaining raw data after splitting
                            train data. Only used when performing tain-test-val split.
-                           Range between 0 to 1. If not provided, dataset will only 
+                           Range between 0 to 1. If not provided, dataset will only
                            be split into train and test
         random_state (int): Random seed
 

@@ -1,21 +1,15 @@
 """Module containing the Evaluator class with methods to evaluate a model's performance
 """
 import logging
-from typing import Tuple
-
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import shap
-from sklearn.model_selection import cross_validate
 from sklearn.base import clone
-from sklearn.metrics import (
-    r2_score,
-    mean_squared_error,
-    mean_absolute_error
-)
-from sklearn.inspection import permutation_importance
+from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
+from sklearn.model_selection import cross_validate
+from typing import Tuple
 
 import hdb_resale_estimator as hdb_est
 from hdb_resale_estimator.modeling.builder import ClassicalModelBuilder
@@ -24,7 +18,8 @@ logger = logging.getLogger(__name__)
 
 
 class Evaluator:
-    """Evaluator class will calculate model performance metrics and generate visualizations for the train, validation and test sets
+    """Evaluator class will calculate model performance metrics and
+    generate visualizations for the train, validation and test sets
 
     Args:
         builder (ClassicalModelBuilder): Object containing the trained model
@@ -53,7 +48,7 @@ class Evaluator:
         Evaluates the model on specific datasets
 
         Args:
-            datasets (dict): Dictionary containing the train, test sets (and optionally validation set)
+            datasets (dict): Dictionary containing the different datasets
 
         Returns:
             dict: Dictionary containing the model performance metrics for each dataset
@@ -62,9 +57,7 @@ class Evaluator:
 
         metrics = {}
         # generate tmp directory to save visualisation
-        visualizations_save_dir = hdb_est.utils.generate_named_tmp_dir(
-            dir_name="graph"
-        )
+        visualizations_save_dir = hdb_est.utils.generate_named_tmp_dir(dir_name="graph")
 
         with hdb_est.utils.timer(task="train-test-val model evaluation"):
             for dataset_type in datasets:
@@ -80,14 +73,16 @@ class Evaluator:
                     dataset_type=dataset_type,
                     actual_values=target,
                     predicted_values=predicted_values,
-                    rounding_last_n=self.rounding_last_n 
+                    rounding_last_n=self.rounding_last_n,
                 )
                 metrics.update(dataset_metrics)
 
-                self._save_actual_predicted_scatterplot(dataset_type=dataset_type,
-                                            actual_values=target,
-                                            predicted_values=predicted_values,
-                                            save_dir=visualizations_save_dir)
+                self._save_actual_predicted_scatterplot(
+                    dataset_type=dataset_type,
+                    actual_values=target,
+                    predicted_values=predicted_values,
+                    save_dir=visualizations_save_dir,
+                )
 
         # Generate cross validation scores
         if self.no_of_cv_folds:
@@ -102,18 +97,19 @@ class Evaluator:
             self._save_ebm_feature_importances(save_dir=visualizations_save_dir)
 
         elif self.chosen_model == "randforest":
-
-            self._save_tree_feature_importances(train_X=datasets["train"]["X"],
-                                                save_dir=visualizations_save_dir)
+            self._save_tree_feature_importances(
+                train_X=datasets["train"]["X"], save_dir=visualizations_save_dir
+            )
 
             if self.shap_explainer:
-                self._generate_shap_plots(train_X=datasets["train"]["X"],
-                                          save_dir=visualizations_save_dir)
+                self._generate_shap_plots(
+                    train_X=datasets["train"]["X"], save_dir=visualizations_save_dir
+                )
 
         elif (self.chosen_model == "xgboost") & (self.shap_explainer):
-
-            self._generate_shap_plots(train_X=datasets["train"]["X"],
-                                        save_dir=visualizations_save_dir)
+            self._generate_shap_plots(
+                train_X=datasets["train"]["X"], save_dir=visualizations_save_dir
+            )
 
         else:
             logger.info("%s not in list to show feature importance", self.chosen_model)
@@ -138,9 +134,9 @@ class Evaluator:
 
         Returns:
             dict: Dictionary containing the following model performance metrics:
-                - mean_squared_error: 
-                - mean_absolute_error: 
-                - r2_score: 
+                - root_mean_squared_error
+                - mean_absolute_error
+                - r2_score
 
 
         """
@@ -149,7 +145,8 @@ class Evaluator:
 
         metrics = {
             f"{dataset_type}_root_mean_squared_error": round(
-                np.sqrt(mean_squared_error(actual_values, predicted_values)), rounding_last_n
+                np.sqrt(mean_squared_error(actual_values, predicted_values)),
+                rounding_last_n,
             ),
             f"{dataset_type}_mean_absolute_error": round(
                 mean_absolute_error(actual_values, predicted_values), rounding_last_n
@@ -179,8 +176,6 @@ class Evaluator:
         Returns:
             dict: Dictionary containing the save path of the following visualizations:
                     - Actual vs Predicted scatterplot
-                    - Precision-Recall-f1 curve
-                    - Receiver Operating Characteristic (ROC) curve
         """
 
         actual_predicted_scatterplot_path = self._save_actual_predicted_scatterplot(
@@ -195,13 +190,14 @@ class Evaluator:
         }
 
         return visualizations
-    
-    def _save_actual_predicted_scatterplot(self,
-                                           dataset_type: str,
-                                           actual_values: npt.ArrayLike,
-                                           predicted_values: npt.ArrayLike,
-                                           save_dir: str) -> str:
-        
+
+    def _save_actual_predicted_scatterplot(
+        self,
+        dataset_type: str,
+        actual_values: npt.ArrayLike,
+        predicted_values: npt.ArrayLike,
+        save_dir: str,
+    ) -> str:
         """
         Generates the actual vs predicted values scatterplot and saves the visualisation to filepath
 
@@ -214,8 +210,8 @@ class Evaluator:
         Returns:
             str: File save path of the visualization
         """
-        colors = actual_values-predicted_values
-        plt.figure(figsize=(10,10))
+        colors = actual_values - predicted_values
+        plt.figure(figsize=(10, 10))
         plt.scatter(x=predicted_values, y=actual_values, c=colors, alpha=0.5)
 
         plt.xlabel("Predicted")
@@ -229,47 +225,6 @@ class Evaluator:
         )
 
         return file_save_path
-
-    def _save_permutation_feature_importances(self, train_X: pd.DataFrame, train_y: pd.DataFrame, save_dir:str) -> str:
-        """_summary_
-
-        Args:
-            train_X (pd.DataFrame): _description_
-            train_y (pd.DataFrame): _description_
-            save_dir (str): _description_
-
-        Returns:
-            str: _description_
-        """
-
-        scoring = ["neg_mean_squared_error", "neg_mean_absolute_error", "r2"]
-        perm_impt = permutation_importance(self.builder.model, train_X, train_y, random_state=42, scoring=scoring)
-        permu_impt_df_dict = {}
-
-        for metric in scoring:
-            metric_permu_impt_df = pd.DataFrame()
-            metric_permu_impt_df["Feature"] = list(train_X.columns)
-            metric_permu_impt_df["Importance"] = list(perm_impt[metric]["importances_mean"])
-            metric_permu_impt_df = metric_permu_impt_df.sort_values(by = ["Importance"], ascending = False)
-            metric_permu_impt_df = metric_permu_impt_df.head(self.top_n_features)
-            permu_impt_df_dict[metric] = metric_permu_impt_df
-
-        plot_name = "Permutation_Feature_Importances"
-        fig, axes = plt.subplots(1,3, figsize=(18,6), sharex=False)
-        fig.suptitle(plot_name)
-
-        for i in range(len(scoring)):
-            axes[i].barh("Feature", width="Importance", data=permu_impt_df_dict[scoring[i]])
-            axes[i].set_title(scoring[i])
-
-        fig.tight_layout()
-
-        file_save_path = self._save_visualization(
-            plot_name=plot_name, save_dir=save_dir
-        )
-
-        return file_save_path
-    
 
     def _save_ebm_feature_importances(self, save_dir: str) -> str:
         """
@@ -307,20 +262,24 @@ class Evaluator:
         return file_save_path
 
     def _save_tree_feature_importances(self, train_X: pd.DataFrame, save_dir: str):
-        """_summary_
+        """
+        Generates a horizontal barplot of the feature importances in a tree-based model
+        and saves the visualisation to filepath
 
         Args:
-            train_X (pd.DataFrame): _description_
-            save_dir (str): _description_
+            train_X (pd.DataFrame): Dataframe containing train set features
+            save_dir (str): Directory that the evaluation visualizations are saved in
 
         Returns:
-            _type_: _description_
+            str: File save path of the visualization
         """
 
         feature_impt_df = pd.DataFrame()
         feature_impt_df["Feature"] = list(train_X.columns)
         feature_impt_df["Importance"] = list(self.builder.model.feature_importances_)
-        feature_impt_df = feature_impt_df.sort_values(by = ["Importance"], ascending = False)
+        feature_impt_df = feature_impt_df.sort_values(
+            by=["Importance"], ascending=False
+        )
         feature_impt_df = feature_impt_df.head(self.top_n_features)
 
         plt.figure(figsize=(15, 10))
@@ -358,9 +317,7 @@ class Evaluator:
 
         return file_save_path
 
-    def _cross_val_scores(
-        self, X: pd.DataFrame, y: pd.Series
-    ) -> dict:
+    def _cross_val_scores(self, X: pd.DataFrame, y: pd.Series) -> dict:
         """
         Helper function to calculate cross validation scores
 
@@ -382,21 +339,32 @@ class Evaluator:
             cv=self.no_of_cv_folds,
         )
         metrics = {
-            "cv_mean_root_mean_squared_error": np.mean([np.sqrt(-mse) for mse in result["test_neg_mean_squared_error"]]),
-            "cv_std_root_mean_squared_error": np.std([np.sqrt(-mse) for mse in result["test_neg_mean_squared_error"]]),
-            "cv_mean_mean_absolute_error": -result["test_neg_mean_absolute_error"].mean(),
+            "cv_mean_root_mean_squared_error": np.mean(
+                [np.sqrt(-mse) for mse in result["test_neg_mean_squared_error"]]
+            ),
+            "cv_std_root_mean_squared_error": np.std(
+                [np.sqrt(-mse) for mse in result["test_neg_mean_squared_error"]]
+            ),
+            "cv_mean_mean_absolute_error": -result[
+                "test_neg_mean_absolute_error"
+            ].mean(),
             "cv_std_mean_absolute_error": result["test_neg_mean_absolute_error"].std(),
             "cv_mean_r2_score": result["test_r2"].mean(),
             "cv_std_r2_score": result["test_r2"].std(),
         }
         return metrics
-    
+
     def _generate_shap_plots(self, train_X: pd.DataFrame, save_dir: str):
-        """_summary_
+        """
+        Generates shap waterfall plot using calculated shap values of the train set
+        and saves the visualisation to filepath
 
         Args:
-            train_X (pd.DataFrame): _description_
-            save_dir (str): _description_
+            train_X (pd.DataFrame): Dataframe containing train set features
+            save_dir (str): Directory that the evaluation visualizations are saved in
+
+        Returns:
+            str: File save path of the visualization
         """
 
         explainer = shap.Explainer(self.builder.model.predict, train_X)
@@ -404,11 +372,16 @@ class Evaluator:
 
         shap_values = explainer(train_X)
 
-        shap.summary_plot(shap_values.values, features=train_X, feature_names=list(train_X.columns), show=False)
+        shap.summary_plot(
+            shap_values.values,
+            features=train_X,
+            feature_names=list(train_X.columns),
+            show=False,
+        )
         _, h = plt.gcf().get_size_inches()
-        plt.gcf().set_size_inches(h*3, h)
+        plt.gcf().set_size_inches(h * 3, h)
         ax = plt.gca()
-        ax.set_xlim(-200000, 200000) 
+        ax.set_xlim(-200000, 200000)
         plot_name = f"Summary plot of shap values"
         plt.title(plot_name)
 
@@ -417,6 +390,3 @@ class Evaluator:
         )
 
         return file_save_path
-
-
-
