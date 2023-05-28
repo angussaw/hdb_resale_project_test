@@ -44,7 +44,7 @@ class FeatureEngineer:
            pd.DataFrame: Output dataframe containing
            each hdb transaction and their respective derived features
         """
-
+        
         logger.info("Mapping towns to regions...")
         hdb_data = self.map_regions(
             hdb_data, self.feature_engineering_params["map_regions"]
@@ -202,13 +202,13 @@ class FeatureEngineer:
         amenity_details = hdb_est.utils.read_data(source=source, params=read_params)
         if period:
             amenity_details = amenity_details.rename(
-                columns={"Opening year": "YEAR", "Opening month": "MONTH"}
+                columns={"Opening year": "YEAR", "Opening month": "MONTH", "Name": "address"}
             )
             amenity_details[self.year_month_feature] = pd.to_datetime(
                 amenity_details[["YEAR", "MONTH"]].assign(DAY=1)
             )
             amenity_details = amenity_details[
-                ["Name", "LATITUDE", "LONGITUDE", self.year_month_feature]
+                ["address", "LATITUDE", "LONGITUDE", self.year_month_feature]
             ]
 
         else:

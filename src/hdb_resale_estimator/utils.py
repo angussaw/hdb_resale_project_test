@@ -180,6 +180,34 @@ def find_coordinates(add: str) -> tuple:
     return latitude, longitude
 
 
+def calculate_haversine_distance(lat1: float,
+                                lon1: float,
+                                lat2: float,
+                                lon2: float,
+                                to_radians: bool=True,
+                                earth_radius: int=6371) -> float:
+    """Helper function to caluclate the haversine distance between two coordinates
+
+    Args:
+        lat1 (float): latitude of point 1
+        lon1 (float): longtitude of point 1
+        lat2 (float): latitude of point 2
+        lon2 (float): longtitude of point 2
+        to_radians (bool, optional): Converts coordinates to radians. Defaults to True.
+        earth_radius (int, optional): Radius of the earth. Defaults to 6371.
+
+    Returns:
+        float: haversine distance between two coordinates
+    """
+
+    if to_radians:
+        lat1, lon1, lat2, lon2 = np.radians([lat1, lon1, lat2, lon2])
+
+    a = np.sin((lat2-lat1)/2.0)**2 + \
+        np.cos(lat1) * np.cos(lat2) * np.sin((lon2-lon1)/2.0)**2
+
+    return earth_radius * 2 * np.arcsin(np.sqrt(a))
+
 def find_nearest_amenities(
     flat_transaction: pd.Series,
     amenity_details: pd.DataFrame,
@@ -212,34 +240,30 @@ def find_nearest_amenities(
         flat_transaction[longitude_feature],
     )
     transaction_year_month = flat_transaction[year_month_feature]
-    no_of_amenities_within_radius = 0
-    distance_to_nearest_amenity = float("inf")
+
+    amenity_df_copy = amenity_details.copy()
     if flat_coordinates != (float("inf"), float("inf")):
-        for ind, eachloc in enumerate(amenity_details.iloc[:, 0]):
-            amenity_coordinates = (
-                amenity_details.iloc[ind, 1],
-                amenity_details.iloc[ind, 2],
-            )
-            if period:
-                amenity_year_month = amenity_details.iloc[ind, 3]
-                if transaction_year_month >= amenity_year_month:
-                    distance = float(
-                        str(geodesic(flat_coordinates, amenity_coordinates))[:-3]
-                    )
-            else:
-                distance = float(
-                    str(geodesic(flat_coordinates, amenity_coordinates))[:-3]
-                )
 
-            if distance <= radius:  # compute number of amenities in 2km radius
-                no_of_amenities_within_radius += 1
-
-            if return_nearest_amenity:
-                if distance < distance_to_nearest_amenity:
-                    nearest_amenity_coordinates = amenity_coordinates
-                    nearest_amenity_name = eachloc.upper()
-
-            distance_to_nearest_amenity = min(distance, distance_to_nearest_amenity)
+        amenity_df_copy["FLAT_LATITUDE"] = flat_transaction[latitude_feature]
+        amenity_df_copy["FLAT_LONGITUDE"] =  flat_transaction[longitude_feature]
+        amenity_df_copy["distance_to_flat"] = calculate_haversine_distance(amenity_df_copy["LATITUDE"],
+                                                                            amenity_df_copy["LONGITUDE"],
+                                                                            amenity_df_copy["FLAT_LATITUDE"],
+                                                                            amenity_df_copy["FLAT_LONGITUDE"])
+        if period:
+            amenity_df_copy = amenity_df_copy[amenity_df_copy["year_month"] <= transaction_year_month]
+        
+        no_of_amenities_within_radius = len(amenity_df_copy[amenity_df_copy["distance_to_flat"] <= radius])
+        distance_to_nearest_amenity = min(amenity_df_copy["distance_to_flat"])
+        nearest_amenity_name = amenity_df_copy[amenity_df_copy["distance_to_flat"] == distance_to_nearest_amenity]["address"].values[0]
+        nearest_amenity_coordinates = (amenity_df_copy[amenity_df_copy["address"] == nearest_amenity_name]["LATITUDE"].values[0],
+                                       amenity_df_copy[amenity_df_copy["address"] == nearest_amenity_name]["LONGITUDE"].values[0])
+        
+    else:
+        no_of_amenities_within_radius = None
+        distance_to_nearest_amenity = None
+        nearest_amenity_coordinates = None
+        nearest_amenity_name = None
 
     if return_nearest_amenity:
         return (

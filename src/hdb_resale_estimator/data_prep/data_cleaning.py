@@ -86,6 +86,7 @@ class DataCleaner:
         self.raw_hdb_data = pd.merge(
             self.raw_hdb_data, cpi_data, how="left", on=self.month_feature
         )
+        self.raw_hdb_data[["cpi"]] = self.raw_hdb_data[["cpi"]].fillna(value=0)
         self.raw_hdb_data[resale_price_feature] = (
             self.raw_hdb_data[resale_price_feature] / self.raw_hdb_data["cpi"]
         ) * 100
