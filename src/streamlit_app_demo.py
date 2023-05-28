@@ -288,6 +288,7 @@ def main():
                 col.replace("no_of_", "").replace(f"_within_{radius}_km", "").upper()
                 for col in number_of_amenities_df.columns
             ]
+            number_of_amenities_df = number_of_amenities_df.set_index([["Value"]])
 
             distance_to_nearest_amenity_df = derived_input_data_df[
                 [
@@ -300,6 +301,8 @@ def main():
                 col.replace("distance_to_nearest_", "").upper()
                 for col in distance_to_nearest_amenity_df.columns
             ]
+
+            distance_to_nearest_amenity_df = distance_to_nearest_amenity_df.set_index([["Value"]])
 
             left, right = st.columns(2)
             with left:
