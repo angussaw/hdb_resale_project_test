@@ -13,8 +13,10 @@ import mlflow
 import numpy as np
 import os
 import pandas as pd
+from pathlib import Path
 import requests
 import sqlalchemy
+import tempfile
 import time
 from typing import Tuple
 import yaml
@@ -442,3 +444,18 @@ def retrieve_builder(
     builder = joblib.load(model_path)
 
     return builder
+
+def generate_named_tmp_dir(dir_name: str) -> str:
+    """Generate a temporary directory for storage of artifact to log into MLFLOW
+
+    Args:
+        dir_name (str): Name of temporary directory
+
+    Returns:
+        (str): temporary directory path
+    """
+    tmp_dir = tempfile.mkdtemp()
+    named_tmp_dir = Path(os.sep.join([tmp_dir, dir_name]))
+    named_tmp_dir.mkdir()
+
+    return named_tmp_dir

@@ -381,7 +381,7 @@ class Evaluator:
         _, h = plt.gcf().get_size_inches()
         plt.gcf().set_size_inches(h * 3, h)
         ax = plt.gca()
-        ax.set_xlim(-200000, 200000)
+        ax.set_xlim(-800000, 800000)
         plot_name = f"Summary plot of shap values"
         plt.title(plot_name)
 
