@@ -61,6 +61,12 @@ def validate_input_data(input: dict) -> List[str]:
     ):
         messages.append("Please input a valid block and/or street name")
 
+    if input["floor_area_sqm"] <= 0:
+        messages.append("Please input a non-negative/zero value for the floor area parameter")
+
+    if (input["lease_commence_year"] < 1900) | (input["lease_commence_year"] > 9999):
+        messages.append("Please input a valid lease commence year")
+
     return messages
 
 
