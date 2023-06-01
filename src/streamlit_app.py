@@ -39,8 +39,7 @@ def validate_input_data(input: dict) -> List[str]:
         < input["lease_commence_date"]
     ):
         messages.append("Lease commence year cannot be older than transaction year")
-
-    if ((input["block"] == None) | (input["street_name"] == None)):
+    if ((input["block"] == "") | (input["street_name"] == "")):
         messages.append("Please input a valid block and/or street name")
     else:
         if hdb_est.utils.find_coordinates(input["block"] + " " + input["street_name"]) == (
