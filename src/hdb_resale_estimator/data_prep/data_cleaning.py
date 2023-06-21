@@ -29,6 +29,7 @@ class DataCleaner:
         """
 
         self.remove_flat_types(self.data_cleaning_params["remove_flat_types"])
+        self.remove_flat_models(self.data_cleaning_params["remove_flat_models"])
         self.replace_flat_models(self.data_cleaning_params["replace_flat_models"])
         self.change_dtype()
         if not self.inference_mode:
@@ -38,6 +39,18 @@ class DataCleaner:
 
     def remove_flat_types(self, params: dict):
         """Function to remove unwanted flat types
+
+        Args:
+            params (dict): Config params
+        """
+        flat_type_feature = params["flat_type"]
+
+        self.raw_hdb_data = self.raw_hdb_data[
+            ~self.raw_hdb_data[flat_type_feature].isin(params["remove"])
+        ]
+    
+    def remove_flat_models(self, params: dict):
+        """Function to remove unwanted flat models
 
         Args:
             params (dict): Config params
@@ -86,7 +99,7 @@ class DataCleaner:
         self.raw_hdb_data = pd.merge(
             self.raw_hdb_data, cpi_data, how="left", on=self.month_feature
         )
-        self.raw_hdb_data[["cpi"]] = self.raw_hdb_data[["cpi"]].fillna(value=0)
+        self.raw_hdb_data[["cpi"]] = self.raw_hdb_data[["cpi"]].fillna(value=100)
         self.raw_hdb_data[resale_price_feature] = (
             self.raw_hdb_data[resale_price_feature] / self.raw_hdb_data["cpi"]
         ) * 100

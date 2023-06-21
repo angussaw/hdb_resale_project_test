@@ -1,13 +1,12 @@
 files:
-  training:
-    raw_data:
-        read_from_source: csv
-        params:
-          data_path: "data/raw/for_training/"
-          concat: True
-    preprocessed_save_path: "data/preprocessed/for_training/hdb_preprocessed.csv"
-    save_to_source: "local"
-    derived_features_table_name: "hdb_training_features"
+  raw_data:
+      read_from_source: csv
+      params:
+        data_path: "data/raw/for_training/"
+        concat: True
+  save_to_source: "postgres"
+  preprocessed_save_path: "data/preprocessed/for_training/hdb_preprocessed.csv"
+  derived_features_table_name: "hdb_training_features"
 
 data_prep:
 
@@ -29,6 +28,11 @@ data_prep:
         - "1 ROOM"
         - "MULTI-GENERATION"
         - "MULTI GENERATION"
+
+    remove_flat_models:
+      flat_type: "flat_model"
+      remove:
+        - "3Gen"
 
     replace_flat_models:
       flat_model: flat_model
@@ -60,6 +64,11 @@ data_prep:
       longitude: "longitude"
       block: "block"
       street_name: "street_name"
+      flat_coordinates:
+        read_from_source: csv
+        params:
+          data_path: "data/eda/flat_coordinates.csv"
+          concat: False
       amenities:
         malls:
           amenities_data:

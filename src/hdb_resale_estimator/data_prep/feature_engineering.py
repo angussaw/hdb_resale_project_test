@@ -33,7 +33,7 @@ class FeatureEngineer:
         self.inference_mode = inference_mode
         self.directory = directory
 
-    def engineer_features(self, hdb_data: pd.DataFrame) -> pd.DataFrame:
+    def engineer_features(self, hdb_data: pd.DataFrame, retrieve_coordinates: bool = True) -> pd.DataFrame:
         """
         Engineer features from cleaned hdb data
 
@@ -144,17 +144,24 @@ class FeatureEngineer:
         block_feature = params["block"]
         street_name_feature = params["street_name"]
         amenities = params["amenities"]
+        flat_coordinates = params["flat_coordinates"]
 
         logger.info("Generating lat long coordinates...")
-        hdb_coordinates = pd.DataFrame(
-            hdb_data.progress_apply(
-                lambda x: hdb_est.utils.find_coordinates(
-                    x[block_feature] + " " + x[street_name_feature]
-                ),
-                axis=1,
-            ).tolist(),
-            columns=[latitude_feature, longitude_feature],
-        )
+        if not self.inference_mode:
+            flat_coordinates = hdb_est.utils.read_data(source=flat_coordinates["read_from_source"], params=flat_coordinates["params"])
+            hdb_coordinates = hdb_data.merge(flat_coordinates.drop_duplicates(), 
+                                             how="left", 
+                                             on=[block_feature, street_name_feature])[[latitude_feature, longitude_feature]]
+        else:
+            hdb_coordinates = pd.DataFrame(
+                hdb_data.progress_apply(
+                    lambda x: hdb_est.utils.find_coordinates(
+                        x[block_feature] + " " + x[street_name_feature]
+                    ),
+                    axis=1,
+                ).tolist(),
+                columns=[latitude_feature, longitude_feature],
+            )
         amenity_features_list = [hdb_coordinates]
         for amenity in amenities:
             logger.info(f"Getting nearest {amenity}...")

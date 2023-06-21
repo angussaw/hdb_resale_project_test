@@ -26,7 +26,7 @@ with open("conf/data_prep.yaml", "r") as file:
     config = yaml.safe_load(file)
 
 logger = logging.getLogger(__name__)
-model_path = "models//model/best_xgboost_v1.joblib"
+model_path = "models//model/best_xgboost_v2.joblib"
 builder = joblib.load(model_path)
 
 PRED_MODEL = builder.model
@@ -115,16 +115,13 @@ def main():
     with st.sidebar:
         submit = st.button("Estimate resale price")
 
-        year = st.selectbox(
-            "Select year", (["2015", "2016", "2017", "2018", "2019", "2020"])
-        )
+        currentMonth = str(datetime.now().month)
+        currentYear = str(datetime.now().year)
 
-        month = st.selectbox(
-            "Select month",
-            (["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"]),
-        )
+        if len(currentMonth) == 1:
+            currentMonth = '0' + currentMonth
 
-        month = year + "-" + month
+        month = currentYear + "-" + currentMonth
 
         flat_type = st.radio(
             "Select flat type", ("3 ROOM", "4 ROOM", "5 ROOM", "EXECUTIVE")
